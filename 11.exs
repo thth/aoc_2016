@@ -1,23 +1,39 @@
 defmodule Eleven do
+  @moduledoc """
+  breadth-first search for final state, keeping a set of seen states to not consider
+  and some filters for state progressions that wouldn't be going towards the end
+  """
+
   defmodule State do
     defstruct permutation: nil, elevator: 1
 
     def new(permutation), do: %State{permutation: permutation}
   end
 
+  # runs in ~9 seconds
   def part_one(input) do
     initial_state = parse(input)
     final_state = get_final_state(initial_state)
 
-    input
-    |> parse()
-    |> simulate()
-    |> Map.get(final_state)
+    simulate(initial_state, final_state)
   end
 
+  # runs in ~9 minutes
   def part_two(input) do
-    input
-    |> parse()
+    initial_state =
+      input
+      |> parse()
+      |> Map.update!(:permutation, fn permutation ->
+        Map.update!(permutation, 1, fn objects ->
+          [{:chip, "elerium"}, {:gen, "elerium"}, {:chip, "dilithium"}, {:gen, "dilithium"}]
+          |> MapSet.new()
+          |> MapSet.union(objects)
+        end)
+      end)
+      |> IO.inspect()
+    final_state = get_final_state(initial_state)
+
+    simulate(initial_state, final_state)
   end
 
   defp parse(text) do
@@ -56,15 +72,20 @@ defmodule Eleven do
     }
   end
 
-  defp simulate(initial_state), do: do_simulate([{initial_state, 0}], %{})
+  defp simulate(initial_state, target), do: do_simulate([initial_state], [], 0, MapSet.new(), target)
 
-  defp do_simulate([], states_min_steps), do: states_min_steps
-  defp do_simulate([{state, steps} | rest], seen) do
-    {new_states_steps, new_seen} =
+  defp do_simulate([], next, steps, seen, target), do: do_simulate(next, [], steps + 1, seen, target)
+  defp do_simulate([state | rest], next, steps, seen, target) do
+    new_states =
       state
       |> possible_next_states()
-      |> compare_states_with_seen(steps, seen)
-    do_simulate(new_states_steps ++ rest, new_seen)
+      |> Enum.reject(&MapSet.member?(seen, &1))
+    if target in new_states do
+      steps + 1
+    else
+      new_seen = new_states |> MapSet.new() |> MapSet.union(seen)
+      do_simulate(rest, new_states ++ next, steps, new_seen, target)
+    end
   end
 
   defp possible_next_states(state) do
@@ -106,38 +127,20 @@ defmodule Eleven do
   end
 
   defp floor_no_gen?(objects), do: not Enum.any?(objects, &(elem(&1, 0) == :gen))
+
   defp floor_chips_protected?(objects) do
     objects
     |> Enum.filter(&(elem(&1, 0) == :chip))
     |> Enum.all?(fn {:chip, elem} -> MapSet.member?(objects, {:gen, elem}) end)
   end
-
-  defp compare_states_with_seen(states, steps, seen) do
-    new_steps = steps + 1
-    new_states_steps =
-    states
-      |> Enum.filter(fn state ->
-        case Map.get(seen, state) do
-          nil -> true
-          prev_seen_steps -> new_steps < prev_seen_steps
-        end
-      end)
-      |> Enum.map(fn state -> {state, new_steps} end)
-    new_seen =
-      Enum.reduce(new_states_steps, seen, fn {state, _steps}, acc ->
-        Map.put(acc, state, new_steps)
-      end)
-    {new_states_steps, new_seen}
-  end
 end
 
 input = File.read!("input/11.txt")
-# input = File.read!("input/example.txt")
 
 input
 |> Eleven.part_one()
 |> IO.inspect(label: "part 1")
 
-# input
-# |> Eleven.part_two()
-# |> IO.inspect(label: "part 2")
+input
+|> Eleven.part_two()
+|> IO.inspect(label: "part 2")
