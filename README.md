@@ -1,4 +1,4 @@
-elixir solutions for advent of code 2016 (WIP)
+elixir solutions for advent of code 2016
 
 * [2015](https://github.com/thth/aoc_2015)
 * __2016__
